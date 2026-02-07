@@ -131,8 +131,7 @@ def forward_user_message(message):
     if user_text.startswith('/'):
         return
     
-    print(f"📩 پیام جدید از {user_name}: {user_text[:50]}
-...")
+    print(f"📩 پیام جدید از {user_name}: {user_text[:50]}")
     
     try:
         # 1. فوروارد پیام به شما (با اطلاعات کاربر)
