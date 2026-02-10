@@ -1,3 +1,19 @@
+# -*- coding: utf-8 -*-
+import sys
+import importlib
+
+# کش‌باستر قبل از هر چیزی
+def clear_python_cache():
+    """پاک کردن کش پایتون"""
+    modules_to_keep = ['sys', 'importlib', 'builtins', '__main__']
+    for module_name in list(sys.modules.keys()):
+        if module_name in modules_to_keep:
+            continue
+        if module_name.startswith('telebot') or module_name.startswith('telegram'):
+            del sys.modules[module_name]
+    print("✅ کش پایتون پاک شد")
+
+clear_python_cache()
 from telegram import (
     Update,
     InlineKeyboardButton,
