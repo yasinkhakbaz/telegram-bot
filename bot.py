@@ -13,8 +13,8 @@ from datetime import datetime
 from telebot import types
 
 # ============ تنظیمات ============
-TOKEN = "توکن_ربات_خودت_را_اینجا_بگذار"  # از @BotFather
-ADMIN_ID = "آیدی_عددی_خودت"               # از @userinfobot
+TOKEN = "8511185751:AAHpc-PTFtCNyBGrSknSKHv_6iV2O3Rdy4U"  # از @BotFather
+ADMIN_ID = "1761692934"               # از @userinfobot
 # =================================
 
 bot = telebot.TeleBot(TOKEN)
