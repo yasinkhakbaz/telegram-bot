@@ -3,10 +3,11 @@ import telebot
 import time
 import json
 import os
+from datetime import datetime
 from telebot import types
 
 # تنظیمات ربات
-TOKEN = "8511185751:AAHpc-PTFtCNyBGrSknSKHv_6iV2O3Rdy4U"
+TOKEN = "7743828881:AAFhPQ6yyfVfOT0z60FWvMvK658K5FTttLU"
 YOUR_CHAT_ID = "1761692934"
 
 # ایجاد ربات
@@ -14,531 +15,822 @@ bot = telebot.TeleBot(TOKEN)
 
 # ساختارهای داده
 recent_messages = []  # پیام‌های اخیر
-MAX_MESSAGES = 50  # حداکثر تعداد پیام ذخیره شده
+MAX_MESSAGES = 100  # حداکثر تعداد پیام ذخیره شده
+blocked_users = []  # لیست کاربران بلاک شده
+users_data = {}  # اطلاعات کاربران
 
 # دیکشنری برای ذخیره وضعیت ریپلای کاربران
 reply_sessions = {}  # {admin_id: {'target_user_id': X, 'target_message_id': Y, 'reply_text': ''}}
 
 # فایل ذخیره داده‌ها
 DATA_FILE = "bot_data.json"
+BLOCKED_FILE = "blocked_users.json"
+USERS_FILE = "users_data.json"
 
-print("🤖 ربات پیام‌رسان با قابلیت ریپلای فعال شد!")
-print(f"🆔 آیدی شما: {YOUR_CHAT_ID}")
+print("🤖 ربات پیام‌رسان پیشرفته فعال شد!")
+print(f"🆔 آیدی ادمین: {YOUR_CHAT_ID}")
 print("📱 منتظر پیام کاربران...")
 
 # === توابع کمکی ===
-def save_data():
-    """ذخیره داده‌ها در فایل"""
-    data = {
-        'recent_messages': recent_messages,
-        'reply_sessions': reply_sessions
-    }
+def save_all_data():
+    """ذخیره همه داده‌ها در فایل"""
     try:
+        # ذخیره پیام‌ها
+        messages_data = {
+            'recent_messages': recent_messages[-MAX_MESSAGES:],
+            'reply_sessions': reply_sessions
+        }
         with open(DATA_FILE, 'w', encoding='utf-8') as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
-    except:
-        pass
+            json.dump(messages_data, f, ensure_ascii=False, indent=2)
+        
+        # ذخیره کاربران بلاک شده
+        with open(BLOCKED_FILE, 'w', encoding='utf-8') as f:
+            json.dump(blocked_users, f, ensure_ascii=False, indent=2)
+        
+        # ذخیره اطلاعات کاربران
+        with open(USERS_FILE, 'w', encoding='utf-8') as f:
+            json.dump(users_data, f, ensure_ascii=False, indent=2)
+            
+        print(f"💾 داده‌ها ذخیره شد: {len(recent_messages)} پیام, {len(blocked_users)} بلاک شده")
+    except Exception as e:
+        print(f"⚠️ خطا در ذخیره داده‌ها: {e}")
 
-def load_data():
-    """بارگذاری داده‌ها از فایل"""
-    global recent_messages, reply_sessions
+def load_all_data():
+    """بارگذاری همه داده‌ها از فایل"""
+    global recent_messages, blocked_users, users_data, reply_sessions
+    
     try:
+        # بارگذاری پیام‌ها
         if os.path.exists(DATA_FILE):
             with open(DATA_FILE, 'r', encoding='utf-8') as f:
                 data = json.load(f)
                 recent_messages = data.get('recent_messages', [])
                 reply_sessions = data.get('reply_sessions', {})
-                print(f"✅ داده‌ها بارگذاری شد: {len(recent_messages)} پیام")
-    except:
-        print("⚠️ خطا در بارگذاری داده‌ها")
+                print(f"📂 پیام‌ها بارگذاری شد: {len(recent_messages)}")
+        
+        # بارگذاری کاربران بلاک شده
+        if os.path.exists(BLOCKED_FILE):
+            with open(BLOCKED_FILE, 'r', encoding='utf-8') as f:
+                blocked_users = json.load(f)
+                print(f"🚫 کاربران بلاک شده: {len(blocked_users)}")
+        
+        # بارگذاری اطلاعات کاربران
+        if os.path.exists(USERS_FILE):
+            with open(USERS_FILE, 'r', encoding='utf-8') as f:
+                users_data = json.load(f)
+                print(f"👥 اطلاعات کاربران: {len(users_data)} کاربر")
+                
+    except Exception as e:
+        print(f"⚠️ خطا در بارگذاری داده‌ها: {e}")
 
 # بارگذاری داده‌های قبلی
-load_data()
+load_all_data()
 
-# === دکمه‌های ریپلای ===
-def create_reply_keyboard(user_id, message_id):
-    """ایجاد کیبورد ریپلای برای ادمین"""
+def update_user_data(user_id, user_name, username=""):
+    """به‌روزرسانی اطلاعات کاربر"""
+    user_id_str = str(user_id)
+    
+    if user_id_str not in users_data:
+        users_data[user_id_str] = {
+            'name': user_name,
+            'username': username,
+            'first_seen': time.time(),
+            'last_seen': time.time(),
+            'message_count': 1,
+            'is_blocked': user_id in blocked_users
+        }
+    else:
+        users_data[user_id_str]['last_seen'] = time.time()
+        users_data[user_id_str]['message_count'] += 1
+        if users_data[user_id_str]['name'] != user_name:
+            users_data[user_id_str]['name'] = user_name
+        if username and users_data[user_id_str]['username'] != username:
+            users_data[user_id_str]['username'] = username
+
+# === دکمه‌های پیشرفته ===
+def create_advanced_keyboard(user_id, message_id):
+    """ایجاد کیبورد پیشرفته برای ادمین"""
+    keyboard = types.InlineKeyboardMarkup(row_width=3)
+    
+    btn_reply = types.InlineKeyboardButton("📩 پاسخ", callback_data=f"reply_{user_id}_{message_id}")
+    btn_block = types.InlineKeyboardButton("🚫 بلاک", callback_data=f"block_{user_id}")
+    btn_profile = types.InlineKeyboardButton("👤 پروفایل", callback_data=f"profile_{user_id}")
+    btn_messages = types.InlineKeyboardButton("📨 پیام‌ها", callback_data=f"messages_{user_id}")
+    btn_unblock = types.InlineKeyboardButton("✅ آنبلاک", callback_data=f"unblock_{user_id}")
+    btn_delete = types.InlineKeyboardButton("🗑️ حذف", callback_data=f"delete_{message_id}")
+    
+    keyboard.add(btn_reply, btn_block, btn_profile)
+    keyboard.add(btn_messages, btn_unblock, btn_delete)
+    
+    return keyboard
+
+def create_admin_panel_keyboard():
+    """کیبورد پنل ادمین"""
     keyboard = types.InlineKeyboardMarkup(row_width=2)
     
-    btn_reply = types.InlineKeyboardButton(
-        text="📩 ریپلای به کاربر", 
-        callback_data=f"reply_{user_id}_{message_id}"
-    )
+    btn_stats = types.InlineKeyboardButton("📊 آمار", callback_data="admin_stats")
+    btn_users = types.InlineKeyboardButton("👥 کاربران", callback_data="admin_users")
+    btn_messages = types.InlineKeyboardButton("📨 پیام‌ها", callback_data="admin_messages")
+    btn_blocked = types.InlineKeyboardButton("🚫 بلاک شده‌ها", callback_data="admin_blocked")
+    btn_backup = types.InlineKeyboardButton("💾 پشتیبان", callback_data="admin_backup")
+    btn_clean = types.InlineKeyboardButton("🧹 پاکسازی", callback_data="admin_clean")
     
-    btn_cancel = types.InlineKeyboardButton(
-        text="❌ لغو ریپلای", 
-        callback_data=f"cancel_reply"
-    )
+    keyboard.add(btn_stats, btn_users, btn_messages, btn_blocked, btn_backup, btn_clean)
     
-    keyboard.add(btn_reply, btn_cancel)
     return keyboard
 
 def create_cancel_keyboard():
-    """دکمه لغو هنگام ریپلای"""
+    """دکمه لغو"""
     keyboard = types.InlineKeyboardMarkup()
-    btn = types.InlineKeyboardButton(
-        text="❌ انصراف از ارسال", 
-        callback_data="cancel_send"
-    )
+    btn = types.InlineKeyboardButton("❌ انصراف", callback_data="cancel_send")
     keyboard.add(btn)
     return keyboard
 
-# === هندلر اصلی برای کاربران عادی ===
+# === دستورات کاربران ===
 @bot.message_handler(commands=['start', 'help'])
 def send_welcome(message):
-    welcome_text = """
-    👋 *سلام!*
+    user = message.from_user
+    user_id = user.id
     
-    این ربات پیام‌رسان است. هر پیامی که بفرستید:
-    1️⃣ برای مالک ربات ارسال می‌شود
-    2️⃣ تأییدیه دریافت به شما نمایش داده می‌شود
+    # چک کردن بلاک بودن
+    if user_id in blocked_users:
+        bot.send_message(message.chat.id, "🚫 شما توسط ادمین بلاک شده‌اید.")
+        return
     
-    ✍️ *کافیه پیام خود را بنویسید*
+    # به‌روزرسانی اطلاعات کاربر
+    update_user_data(user_id, user.first_name, user.username)
     
-    ⚠️ *نکته:* پیام‌ها به صورت ناشناس ارسال می‌شوند
+    welcome_text = f"""
+    سلام {user.first_name}! 👋
+
+    🤖 *ربات پیام‌رسان پیشرفته*
+
+    ✍️ هر پیامی که بفرستی، مستقیم به صاحب ربات می‌رسه.
+    ✅ تأییدیه هم دریافت می‌کنی.
+
+    🔒 حریم خصوصی کامل
+
+    🆔 آیدی شما: `{user_id}`
     """
+    
     bot.send_message(message.chat.id, welcome_text, parse_mode='Markdown')
     
-    # اطلاع به شما از کاربر جدید
+    # اطلاع به ادمین
     try:
         user_info = f"""
-        👤 *کاربر جدید:*
-        نام: {message.from_user.first_name}
-        یوزرنیم: @{message.from_user.username if message.from_user.username else 'ندارد'}
-        آیدی: `{message.from_user.id}`
-        """
-        msg = bot.send_message(YOUR_CHAT_ID, user_info, parse_mode='Markdown')
+        👤 *کاربر جدید/بازگشته*
         
-        # اضافه کردن دکمه ریپلای
-        bot.edit_message_reply_markup(
-            chat_id=YOUR_CHAT_ID,
-            message_id=msg.message_id,
-            reply_markup=create_reply_keyboard(message.from_user.id, msg.message_id)
+        نام: {user.first_name}
+        یوزرنیم: @{user.username if user.username else 'ندارد'}
+        آیدی: `{user_id}`
+        
+        📅 اولین بازدید: {datetime.fromtimestamp(users_data[str(user_id)]['first_seen']).strftime('%Y-%m-%d %H:%M')}
+        """
+        
+        msg = bot.send_message(
+            YOUR_CHAT_ID, 
+            user_info, 
+            parse_mode='Markdown',
+            reply_markup=create_advanced_keyboard(user_id, message.message_id)
         )
         
     except Exception as e:
         print(f"⚠️ خطا در اطلاع‌رسانی: {e}")
 
-# === هندلر برای پیام‌های کاربران (غیر ادمین) ===
-@bot.message_handler(func=lambda message: str(message.from_user.id) != YOUR_CHAT_ID)
-def forward_user_message(message):
-    user_id = message.from_user.id
-    user_name = message.from_user.first_name
-    username = f"@{message.from_user.username}" if message.from_user.username else "بدون یوزرنیم"
-    user_text = message.text
+# === پیام از کاربران ===
+@bot.message_handler(func=lambda m: str(m.from_user.id) != YOUR_CHAT_ID and not m.text.startswith('/'))
+def handle_user_message(message):
+    user = message.from_user
+    user_id = user.id
+    text = message.text
     
-    # جلوگیری از فوروارد کردن دستورات
-    if user_text.startswith('/'):
+    # چک کردن بلاک بودن
+    if user_id in blocked_users:
+        bot.send_message(message.chat.id, "🚫 شما بلاک شده‌اید.")
         return
     
-    print(f"📩 پیام جدید از {user_name}: {user_text[:50]}...")
+    print(f"📩 پیام از {user.first_name} ({user_id}): {text[:50]}...")
     
     try:
-        # 1. فوروارد پیام به شما (با اطلاعات کاربر)
-        forward_info = f"""
-        📬 *پیام جدید از کاربر:*
+        # به‌روزرسانی اطلاعات کاربر
+        update_user_data(user_id, user.first_name, user.username)
         
-        👤 نام: {user_name}
-        🆔 آیدی: `{user_id}`
-        📝 یوزرنیم: {username}
+        # ساخت پیام برای ادمین
+        msg_for_admin = f"""
+        📬 *پیام جدید*
         
-        ✉️ *پیام:*
-        {user_text}
+        👤: {user.first_name}
+        🆔: `{user_id}`
+        📅: {datetime.now().strftime("%H:%M:%S")}
         
-        ⏰ زمان: {time.strftime('%H:%M:%S')}
+        ✉️:
+        {text}
+        
+        📊 پیام شماره: {users_data[str(user_id)]['message_count']}
         """
         
-        # ارسال پیام به ادمین
-        msg_to_admin = bot.send_message(
-            YOUR_CHAT_ID, 
-            forward_info,
+        # ارسال به ادمین
+        sent_msg = bot.send_message(
+            YOUR_CHAT_ID,
+            msg_for_admin,
             parse_mode='Markdown',
-            reply_markup=create_reply_keyboard(user_id, message.message_id)
+            reply_markup=create_advanced_keyboard(user_id, message.message_id)
         )
         
-        # 2. ذخیره پیام در لیست
+        # ذخیره پیام
         recent_messages.append({
             'user_id': user_id,
-            'user_name': user_name,
-            'text': user_text,
+            'user_name': user.first_name,
+            'text': text,
             'time': time.time(),
-            'user_message_id': message.message_id,
-            'admin_message_id': msg_to_admin.message_id
+            'user_msg_id': message.message_id,
+            'admin_msg_id': sent_msg.message_id
         })
         
-        # محدود کردن حجم لیست
-        if len(recent_messages) > MAX_MESSAGES:
-            recent_messages.pop(0)
+        # تأییدیه به کاربر
+        bot.reply_to(message, "✅ پیام شما ارسال شد!")
         
-        # 3. تأییدیه به کاربر
-        confirmation = f"""
-        ✅ *پیام شما ارسال شد!*
-        
-        متن شما:
-        "{user_text[:100]}{'...' if len(user_text) > 100 else ''}"
-        
-        🔄 برای ارسال پیام جدید، کافیست بنویسید.
-        """
-        
-        bot.reply_to(message, confirmation, parse_mode='Markdown')
-        
-        # ذخیره داده‌ها
-        save_data()
+        save_all_data()
         
     except Exception as e:
-        print(f"❌ خطا در ارسال پیام: {e}")
-        bot.reply_to(message, "❌ متأسفانه خطایی در ارسال پیام رخ داد. لطفاً مجدد تلاش کنید.")
+        print(f"❌ خطا: {e}")
+        bot.reply_to(message, "⚠️ خطا در ارسال")
 
-# === هندلر برای callback دکمه‌ها ===
+# === مدیریت ادمین ===
+@bot.message_handler(commands=['admin', 'panel'])
+def admin_panel(message):
+    if str(message.from_user.id) != YOUR_CHAT_ID:
+        bot.reply_to(message, "❌ دسترسی ندارید!")
+        return
+    
+    panel_text = f"""
+    🛠️ *پنل مدیریت پیشرفته*
+    
+    📊 آمار کلی:
+    • کاربران: {len(users_data)}
+    • پیام‌ها: {len(recent_messages)}
+    • بلاک شده: {len(blocked_users)}
+    
+    ⚡ دستورات سریع:
+    /stats - آمار دقیق
+    /users - لیست کاربران
+    /search [آیدی] - جستجوی کاربر
+    /block [آیدی] - بلاک کاربر
+    /unblock [آیدی] - آنبلاک کاربر
+    /broadcast [متن] - ارسال به همه
+    """
+    
+    bot.send_message(
+        message.chat.id,
+        panel_text,
+        parse_mode='Markdown',
+        reply_markup=create_admin_panel_keyboard()
+    )
+
+@bot.message_handler(commands=['stats'])
+def show_stats(message):
+    if str(message.from_user.id) != YOUR_CHAT_ID:
+        return
+    
+    # محاسبه آمار
+    total_messages = len(recent_messages)
+    unique_users = len(users_data)
+    
+    # پیام‌های امروز
+    today = time.time() - 86400
+    today_messages = len([m for m in recent_messages if m['time'] > today])
+    
+    # کاربران فعال امروز
+    active_today = len([uid for uid, data in users_data.items() 
+                       if data['last_seen'] > today])
+    
+    stats_text = f"""
+    📈 *آمار دقیق ربات*
+    
+    👥 کاربران:
+    • کل کاربران: {unique_users}
+    • فعال امروز: {active_today}
+    • بلاک شده: {len(blocked_users)}
+    
+    📨 پیام‌ها:
+    • کل پیام‌ها: {total_messages}
+    • پیام‌های امروز: {today_messages}
+    • میانگین پیام/کاربر: {round(total_messages/unique_users, 2) if unique_users > 0 else 0}
+    
+    ⏰ زمان:
+    • اولین کاربر: {datetime.fromtimestamp(min([data['first_seen'] for data in users_data.values()])).strftime('%Y-%m-%d') if users_data else 'ندارد'}
+    • آخرین فعالیت: {datetime.fromtimestamp(max([data['last_seen'] for data in users_data.values()])).strftime('%H:%M') if users_data else 'ندارد'}
+    """
+    
+    bot.reply_to(message, stats_text, parse_mode='Markdown')
+
+@bot.message_handler(commands=['users'])
+def list_users(message):
+    if str(message.from_user.id) != YOUR_CHAT_ID:
+        return
+    
+    if not users_data:
+        bot.reply_to(message, "📭 هیچ کاربری ثبت نشده است")
+        return
+    
+    users_list = "👥 *لیست کاربران:*\n\n"
+    
+    # مرتب‌سازی براساس آخرین فعالیت
+    sorted_users = sorted(users_data.items(), 
+                         key=lambda x: x[1]['last_seen'], 
+                         reverse=True)[:20]  # 20 کاربر آخر
+    
+    for i, (user_id, data) in enumerate(sorted_users, 1):
+        status = "🚫" if int(user_id) in blocked_users else "✅"
+        last_seen = datetime.fromtimestamp(data['last_seen']).strftime('%m/%d %H:%M')
+        users_list += f"{i}. {status} {data['name']} (آیدی: `{user_id}`)\n"
+        users_list += f"   📨 {data['message_count']} پیام | 📅 {last_seen}\n\n"
+    
+    bot.reply_to(message, users_list, parse_mode='Markdown')
+
+@bot.message_handler(commands=['search'])
+def search_user(message):
+    if str(message.from_user.id) != YOUR_CHAT_ID:
+        return
+    
+    parts = message.text.split()
+    if len(parts) < 2:
+        bot.reply_to(message, "⚠️ استفاده: /search [آیدی یا نام]")
+        return
+    
+    search_term = parts[1]
+    results = []
+    
+    for user_id, data in users_data.items():
+        if (search_term in str(user_id) or 
+            search_term.lower() in data['name'].lower() or
+            (data['username'] and search_term.lower() in data['username'].lower())):
+            results.append((user_id, data))
+    
+    if not results:
+        bot.reply_to(message, "🔍 کاربری یافت نشد")
+        return
+    
+    search_text = f"🔍 *نتایج جستجو برای '{search_term}':*\n\n"
+    
+    for user_id, data in results[:10]:  # حداکثر 10 نتیجه
+        status = "🚫 بلاک شده" if int(user_id) in blocked_users else "✅ فعال"
+        last_seen = datetime.fromtimestamp(data['last_seen']).strftime('%Y-%m-%d %H:%M')
+        search_text += f"""
+👤 *{data['name']}*
+🆔 آیدی: `{user_id}`
+📝 یوزرنیم: @{data['username'] or 'ندارد'}
+📨 پیام‌ها: {data['message_count']}
+📅 آخرین فعالیت: {last_seen}
+🔰 وضعیت: {status}
+
+"""
+    
+    bot.reply_to(message, search_text, parse_mode='Markdown')
+
+@bot.message_handler(commands=['block'])
+def block_user_cmd(message):
+    if str(message.from_user.id) != YOUR_CHAT_ID:
+        return
+    
+    parts = message.text.split()
+    if len(parts) < 2:
+        bot.reply_to(message, "⚠️ استفاده: /block [آیدی کاربر]")
+        return
+    
+    try:
+        user_id = int(parts[1])
+        
+        if user_id in blocked_users:
+            bot.reply_to(message, f"⚠️ کاربر `{user_id}` قبلاً بلاک شده است")
+            return
+        
+        blocked_users.append(user_id)
+        
+        # آپدیت وضعیت در users_data
+        if str(user_id) in users_data:
+            users_data[str(user_id)]['is_blocked'] = True
+        
+        save_all_data()
+        
+        # اطلاع به کاربر (اگر ممکن باشد)
+        try:
+            bot.send_message(user_id, "🚫 شما توسط ادمین بلاک شده‌اید.")
+        except:
+            pass
+        
+        bot.reply_to(message, f"✅ کاربر `{user_id}` بلاک شد")
+        
+    except ValueError:
+        bot.reply_to(message, "⚠️ آیدی باید عددی باشد")
+
+@bot.message_handler(commands=['unblock'])
+def unblock_user_cmd(message):
+    if str(message.from_user.id) != YOUR_CHAT_ID:
+        return
+    
+    parts = message.text.split()
+    if len(parts) < 2:
+        bot.reply_to(message, "⚠️ استفاده: /unblock [آیدی کاربر]")
+        return
+    
+    try:
+        user_id = int(parts[1])
+        
+        if user_id not in blocked_users:
+            bot.reply_to(message, f"⚠️ کاربر `{user_id}` بلاک نیست")
+            return
+        
+        blocked_users.remove(user_id)
+        
+        # آپدیت وضعیت در users_data
+        if str(user_id) in users_data:
+            users_data[str(user_id)]['is_blocked'] = False
+        
+        save_all_data()
+        
+        # اطلاع به کاربر
+        try:
+            bot.send_message(user_id, "✅ شما توسط ادمین آنبلاک شده‌اید.")
+        except:
+            pass
+        
+        bot.reply_to(message, f"✅ کاربر `{user_id}` آنبلاک شد")
+        
+    except ValueError:
+        bot.reply_to(message, "⚠️ آیدی باید عددی باشد")
+
+@bot.message_handler(commands=['broadcast'])
+def broadcast_message(message):
+    if str(message.from_user.id) != YOUR_CHAT_ID:
+        return
+    
+    parts = message.text.split(' ', 1)
+    if len(parts) < 2:
+        bot.reply_to(message, "⚠️ استفاده: /broadcast [متن پیام]")
+        return
+    
+    broadcast_text = parts[1]
+    sent_count = 0
+    failed_count = 0
+    
+    bot.reply_to(message, f"📢 در حال ارسال به {len(users_data)} کاربر...")
+    
+    for user_id_str in users_data.keys():
+        try:
+            user_id = int(user_id_str)
+            if user_id not in blocked_users:
+                bot.send_message(user_id, f"📢 *پیام همگانی:*\n\n{broadcast_text}", parse_mode='Markdown')
+                sent_count += 1
+                time.sleep(0.1)  # جلوگیری از محدودیت تلگرام
+        except:
+            failed_count += 1
+    
+    bot.reply_to(message, f"""
+✅ ارسال همگانی تکمیل شد:
+• ✅ ارسال شده: {sent_count}
+• ❌ ناموفق: {failed_count}
+• 🚫 بلاک شده: {len(blocked_users)}
+""")
+
+# === سیستم callback پیشرفته ===
 @bot.callback_query_handler(func=lambda call: True)
 def handle_callback(call):
-    """مدیریت کلیک روی دکمه‌های اینلاین"""
     try:
         admin_id = str(call.from_user.id)
         
-        # بررسی دسترسی ادمین
         if admin_id != YOUR_CHAT_ID:
             bot.answer_callback_query(call.id, "❌ دسترسی ندارید!")
             return
         
-        # ریپلای به کاربر
+        # پاسخ به کاربر
         if call.data.startswith('reply_'):
             parts = call.data.split('_')
             if len(parts) >= 3:
                 target_user_id = parts[1]
-                target_message_id = parts[2] if len(parts) > 2 else None
+                target_msg_id = parts[2]
                 
-                # ذخیره وضعیت ریپلای
                 reply_sessions[admin_id] = {
                     'target_user_id': target_user_id,
-                    'target_message_id': target_message_id,
-                    'status': 'waiting_for_reply'
+                    'target_msg_id': target_msg_id,
+                    'status': 'waiting_reply'
                 }
                 
-                # پیدا کردن نام کاربر
-                user_name = "کاربر"
-                for msg in recent_messages:
-                    if str(msg['user_id']) == target_user_id:
-                        user_name = msg['user_name']
-                        break
-                
-                # پیام راهنمایی به ادمین
-                guide_text = f"""
-                ✍️ *در حال پاسخ به {user_name}...*
-                
-                🆔 آیدی کاربر: `{target_user_id}`
-                
-                📝 لطفا پیام پاسخ خود را بنویسید.
-                
-                ⚠️ پیام شما مستقیماً برای کاربر ارسال می‌شود.
-                
-                برای انصراف دکمه ❌ زیر را بزنید.
-                """
+                user_name = users_data.get(target_user_id, {}).get('name', 'کاربر')
                 
                 bot.edit_message_text(
                     chat_id=call.message.chat.id,
                     message_id=call.message.message_id,
-                    text=call.message.text + "\n\n" + "⏳ در حال انتظار برای پاسخ شما...",
+                    text=call.message.text + "\n\n⏳ *منتظر پاسخ شما...*",
                     parse_mode='Markdown'
                 )
                 
-                # ارسال پیام جداگانه با دکمه لغو
-                cancel_msg = bot.send_message(
+                guide = f"""
+                ✍️ *پاسخ به {user_name}*
+                
+                آیدی: `{target_user_id}`
+                
+                پیام پاسخ را بنویسید و ارسال کنید.
+                برای لغو دکمه زیر را بزنید.
+                """
+                
+                bot.send_message(
                     YOUR_CHAT_ID,
-                    guide_text,
+                    guide,
                     parse_mode='Markdown',
                     reply_markup=create_cancel_keyboard()
                 )
                 
-                # ذخیره ID پیام لغو
-                reply_sessions[admin_id]['cancel_message_id'] = cancel_msg.message_id
+                bot.answer_callback_query(call.id, "📝 پیام پاسخ را بنویسید")
+        
+        # بلاک کاربر
+        elif call.data.startswith('block_'):
+            user_id = int(call.data.split('_')[1])
+            
+            if user_id not in blocked_users:
+                blocked_users.append(user_id)
+                if str(user_id) in users_data:
+                    users_data[str(user_id)]['is_blocked'] = True
                 
-                bot.answer_callback_query(call.id, "📝 لطفا پاسخ خود را بنویسید")
-        
-        # لغو ریپلای
-        elif call.data == 'cancel_reply':
-            if admin_id in reply_sessions:
-                del reply_sessions[admin_id]
-            
-            bot.edit_message_reply_markup(
-                chat_id=call.message.chat.id,
-                message_id=call.message.message_id,
-                reply_markup=None
-            )
-            
-            bot.answer_callback_query(call.id, "✅ ریپلای لغو شد")
-        
-        # لغو ارسال
-        elif call.data == 'cancel_send':
-            if admin_id in reply_sessions:
-                # حذف پیام راهنمایی
+                save_all_data()
+                
                 try:
-                    bot.delete_message(
-                        chat_id=call.message.chat.id,
-                        message_id=call.message.message_id
-                    )
+                    bot.send_message(user_id, "🚫 شما توسط ادمین بلاک شده‌اید.")
                 except:
                     pass
                 
-                # حذف وضعیت ریپلای
-                del reply_sessions[admin_id]
+                bot.answer_callback_query(call.id, f"✅ کاربر {user_id} بلاک شد")
                 
-                bot.answer_callback_query(call.id, "✅ ارسال پیام لغو شد")
+                # آپدیت پیام
+                bot.edit_message_text(
+                    chat_id=call.message.chat.id,
+                    message_id=call.message.message_id,
+                    text=call.message.text + "\n\n🚫 *بلاک شده*",
+                    parse_mode='Markdown'
+                )
             else:
-                bot.answer_callback_query(call.id, "⚠️ وضعیت ریپلای یافت نشد")
+                bot.answer_callback_query(call.id, "⚠️ کاربر قبلاً بلاک است")
         
-        save_data()
+        # آنبلاک کاربر
+        elif call.data.startswith('unblock_'):
+            user_id = int(call.data.split('_')[1])
+            
+            if user_id in blocked_users:
+                blocked_users.remove(user_id)
+                if str(user_id) in users_data:
+                    users_data[str(user_id)]['is_blocked'] = False
+                
+                save_all_data()
+                
+                try:
+                    bot.send_message(user_id, "✅ شما توسط ادمین آنبلاک شده‌اید.")
+                except:
+                    pass
+                
+                bot.answer_callback_query(call.id, f"✅ کاربر {user_id} آنبلاک شد")
+                
+                # آپدیت پیام
+                bot.edit_message_text(
+                    chat_id=call.message.chat.id,
+                    message_id=call.message.message_id,
+                    text=call.message.text + "\n\n✅ *آنبلاک شد*",
+                    parse_mode='Markdown'
+                )
+            else:
+                bot.answer_callback_query(call.id, "⚠️ کاربر بلاک نیست")
+        
+        # پروفایل کاربر
+        elif call.data.startswith('profile_'):
+            user_id = call.data.split('_')[1]
+            
+            if user_id in users_data:
+                data = users_data[user_id]
+                status = "🚫 بلاک شده" if int(user_id) in blocked_users else "✅ فعال"
+                first_seen = datetime.fromtimestamp(data['first_seen']).strftime('%Y-%m-%d %H:%M')
+                last_seen = datetime.fromtimestamp(data['last_seen']).strftime('%Y-%m-%d %H:%M')
+                
+                profile_text = f"""
+                👤 *پروفایل کاربر*
+                
+                نام: {data['name']}
+                آیدی: `{user_id}`
+                یوزرنیم: @{data['username'] or 'ندارد'}
+                
+                📊 آمار:
+                • پیام‌ها: {data['message_count']}
+                • وضعیت: {status}
+                • اولین بازدید: {first_seen}
+                • آخرین فعالیت: {last_seen}
+                • مدت عضویت: {int((time.time() - data['first_seen']) / 86400)} روز
+                """
+                
+                bot.send_message(
+                    YOUR_CHAT_ID,
+                    profile_text,
+                    parse_mode='Markdown'
+                )
+                
+                bot.answer_callback_query(call.id, "👤 پروفایل نمایش داده شد")
+            else:
+                bot.answer_callback_query(call.id, "⚠️ کاربر یافت نشد")
+        
+        # پیام‌های کاربر
+        elif call.data.startswith('messages_'):
+            user_id = call.data.split('_')[1]
+            
+            user_messages = [m for m in recent_messages if str(m['user_id']) == user_id]
+            
+            if user_messages:
+                messages_text = f"📨 *پیام‌های کاربر {user_id}:*\n\n"
+                
+                for i, msg in enumerate(user_messages[-10:], 1):  # 10 پیام آخر
+                    time_str = datetime.fromtimestamp(msg['time']).strftime('%m/%d %H:%M')
+                    messages_text += f"{i}. ({time_str}): {msg['text'][:50]}...\n"
+                
+                bot.send_message(YOUR_CHAT_ID, messages_text, parse_mode='Markdown')
+                bot.answer_callback_query(call.id, f"📨 {len(user_messages)} پیام نمایش داده شد")
+            else:
+                bot.answer_callback_query(call.id, "📭 پیامی یافت نشد")
+        
+        # حذف پیام
+        elif call.data.startswith('delete_'):
+            msg_id = call.data.split('_')[1]
+            
+            try:
+                bot.delete_message(call.message.chat.id, call.message.message_id)
+                bot.answer_callback_query(call.id, "🗑️ پیام حذف شد")
+            except:
+                bot.answer_callback_query(call.id, "❌ خطا در حذف")
+        
+        # آمار ادمین
+        elif call.data == "admin_stats":
+            show_stats(call.message)
+            bot.answer_callback_query(call.id, "📊 آمار نمایش داده شد")
+        
+        # لیست کاربران
+        elif call.data == "admin_users":
+            list_users(call.message)
+            bot.answer_callback_query(call.id, "👥 کاربران نمایش داده شد")
+        
+        # پیام‌های ادمین
+        elif call.data == "admin_messages":
+            if not recent_messages:
+                bot.send_message(YOUR_CHAT_ID, "📭 هیچ پیامی وجود ندارد")
+            else:
+                messages_text = "📨 *آخرین پیام‌ها:*\n\n"
+                for msg in recent_messages[-15:]:
+                    time_str = datetime.fromtimestamp(msg['time']).strftime('%m/%d %H:%M')
+                    messages_text += f"• {msg['user_name']} ({time_str}): {msg['text'][:40]}...\n"
+                
+                bot.send_message(YOUR_CHAT_ID, messages_text, parse_mode='Markdown')
+            bot.answer_callback_query(call.id, "📨 پیام‌ها نمایش داده شد")
+        
+        # کاربران بلاک شده
+        elif call.data == "admin_blocked":
+            if not blocked_users:
+                bot.send_message(YOUR_CHAT_ID, "✅ هیچ کاربری بلاک نیست")
+            else:
+                blocked_text = "🚫 *کاربران بلاک شده:*\n\n"
+                for i, user_id in enumerate(blocked_users[:20], 1):
+                    user_name = users_data.get(str(user_id), {}).get('name', 'ناشناس')
+                    blocked_text += f"{i}. {user_name} (آیدی: `{user_id}`)\n"
+                
+                bot.send_message(YOUR_CHAT_ID, blocked_text, parse_mode='Markdown')
+            bot.answer_callback_query(call.id, f"🚫 {len(blocked_users)} کاربر بلاک شده")
+        
+        # پشتیبان گیری
+        elif call.data == "admin_backup":
+            save_all_data()
+            bot.send_message(YOUR_CHAT_ID, "💾 پشتیبان گیری انجام شد")
+            bot.answer_callback_query(call.id, "✅ پشتیبان گیری شد")
+        
+        # پاکسازی
+        elif call.data == "admin_clean":
+            # حذف پیام‌های قدیمی‌تر از 30 روز
+            thirty_days_ago = time.time() - (30 * 86400)
+            old_count = len(recent_messages)
+            recent_messages[:] = [m for m in recent_messages if m['time'] > thirty_days_ago]
+            
+            save_all_data()
+            
+            bot.send_message(
+                YOUR_CHAT_ID,
+                f"🧹 پاکسازی انجام شد:\n• حذف {old_count - len(recent_messages)} پیام قدیمی\n• باقی‌مانده: {len(recent_messages)} پیام"
+            )
+            bot.answer_callback_query(call.id, "🧹 پاکسازی انجام شد")
+        
+        # لغو
+        elif call.data == "cancel_send":
+            if admin_id in reply_sessions:
+                del reply_sessions[admin_id]
+            
+            try:
+                bot.delete_message(call.message.chat.id, call.message.message_id)
+            except:
+                pass
+            
+            bot.answer_callback_query(call.id, "✅ لغو شد")
+        
+        save_all_data()
         
     except Exception as e:
         print(f"❌ خطا در callback: {e}")
         bot.answer_callback_query(call.id, "❌ خطایی رخ داد")
 
-# === هندلر جداگانه برای پیام‌های ادمین ===
-@bot.message_handler(func=lambda message: str(message.from_user.id) == YOUR_CHAT_ID)
+# === پردازش پاسخ ادمین ===
+@bot.message_handler(func=lambda m: str(m.from_user.id) == YOUR_CHAT_ID and not m.text.startswith('/'))
 def handle_admin_message(message):
-    """مدیریت پیام‌های ادمین"""
     admin_id = str(message.from_user.id)
     
-    # اگر ادمین در حالت ریپلای است
-    if admin_id in reply_sessions and reply_sessions[admin_id].get('status') == 'waiting_for_reply':
-        handle_admin_reply(message)
-    else:
-        # اگر دستور ادمین است
-        handle_admin_command(message)
-
-def handle_admin_reply(message):
-    """پردازش پاسخ ادمین به کاربر"""
-    try:
-        admin_id = str(message.from_user.id)
-        session = reply_sessions[admin_id]
-        target_user_id = session['target_user_id']
+    if admin_id in reply_sessions and reply_sessions[admin_id].get('status') == 'waiting_reply':
+        target_user_id = reply_sessions[admin_id]['target_user_id']
         reply_text = message.text
         
-        # جلوگیری از پردازش دستورات به عنوان ریپلای
-        if reply_text.startswith('/'):
-            handle_admin_command(message)
-            return
-        
-        print(f"📤 ادمین در حال پاسخ به کاربر {target_user_id}: {reply_text[:50]}...")
-        
-        # ارسال پاسخ به کاربر
         try:
-            # پیدا کردن نام کاربر
-            user_name = "کاربر"
-            for msg in recent_messages:
-                if str(msg['user_id']) == target_user_id:
-                    user_name = msg['user_name']
-                    break
+            user_name = users_data.get(target_user_id, {}).get('name', 'کاربر')
             
-            # پیام به کاربر
-            user_response = f"""
-            📨 *پاسخ از صاحب ربات:*
+            response = f"""
+            📨 *پاسخ از ادمین:*
             
             {reply_text}
             
             🔄 برای پاسخ مجدد، پیام جدید بنویسید.
             """
             
-            bot.send_message(
-                target_user_id,
-                user_response,
-                parse_mode='Markdown'
-            )
+            bot.send_message(target_user_id, response, parse_mode='Markdown')
+            bot.reply_to(message, f"✅ پاسخ به {user_name} ارسال شد")
             
-            # تأیید به ادمین
-            success_msg = f"""
-            ✅ *پاسخ شما ارسال شد!*
-            
-            به: {user_name}
-            آیدی: `{target_user_id}`
-            
-            📝 متن پاسخ:
-            {reply_text}
-            """
-            
-            bot.reply_to(message, success_msg, parse_mode='Markdown')
-            
-            # حذف پیام راهنمایی لغو
-            if 'cancel_message_id' in session:
-                try:
-                    bot.delete_message(
-                        chat_id=message.chat.id,
-                        message_id=session['cancel_message_id']
-                    )
-                except:
-                    pass
-            
-            # حذف وضعیت ریپلای
             del reply_sessions[admin_id]
-            
-            # علامت‌گذاری پیام اصلی
-            for msg in recent_messages:
-                if str(msg['user_id']) == target_user_id:
-                    try:
-                        # بروزرسانی متن پیام اصلی
-                        updated_text = bot.edit_message_text(
-                            chat_id=YOUR_CHAT_ID,
-                            message_id=msg.get('admin_message_id'),
-                            text=f"✅ *پاسخ داده شده*\n\n{message.text}",
-                            parse_mode='Markdown',
-                            reply_markup=None
-                        )
-                    except Exception as e:
-                        print(f"⚠️ خطا در بروزرسانی پیام: {e}")
-                    break
             
         except Exception as e:
-            print(f"❌ خطا در ارسال پاسخ به کاربر: {e}")
-            
-            # اطلاع به ادمین
-            error_msg = f"""
-            ❌ *خطا در ارسال پاسخ!*
-            
-            دلیل: کاربر ربات را مسدود کرده یا حذف کرده است.
-            
-            آیدی کاربر: `{target_user_id}`
-            """
-            
-            bot.reply_to(message, error_msg, parse_mode='Markdown')
-            
-            # حذف وضعیت ریپلای
+            bot.reply_to(message, f"❌ خطا: {e}")
             if admin_id in reply_sessions:
                 del reply_sessions[admin_id]
-        
-        save_data()
-        
-    except Exception as e:
-        print(f"❌ خطا در handle_admin_reply: {e}")
-
-def handle_admin_command(message):
-    """پردازش دستورات ادمین"""
-    admin_id = str(message.from_user.id)
-    text = message.text
     
-    # دستور /admin
-    if text == '/admin':
-        admin_text = """
-        🛠 *دستورات ادمین:*
-        
-        /stats - آمار ربات
-        /recent - آخرین پیام‌ها
-        /clear - پاک کردن پیام‌های ذخیره شده
-        /cancel - لغو ریپلای فعلی
-        
-        💡 برای ریپلای: روی دکمه "ریپلای به کاربر" کلیک کنید
-        """
-        bot.reply_to(message, admin_text, parse_mode='Markdown')
-    
-    # دستور /stats
-    elif text == '/stats':
-        active_reply = "✅ فعال" if admin_id in reply_sessions else "❌ غیرفعال"
-        stats_text = f"""
-        📊 *آمار ربات:*
-        
-        پیام‌های ذخیره شده: {len(recent_messages)}
-        حداکثر ذخیره: {MAX_MESSAGES}
-        وضعیت ریپلای: {active_reply}
-        
-        برای دیدن پیام‌ها: /recent
-        """
-        bot.reply_to(message, stats_text, parse_mode='Markdown')
-    
-    # دستور /recent
-    elif text == '/recent':
-        if not recent_messages:
-            bot.reply_to(message, "📭 هیچ پیامی ذخیره نشده است")
-            return
-        
-        recent_text = "📨 *آخرین 10 پیام:*\n\n"
-        for i, msg in enumerate(recent_messages[-10:], 1):
-            recent_text += f"{i}. {msg['user_name']} (آیدی: `{msg['user_id']}`): {msg['text'][:40]}...\n"
-        
-        bot.reply_to(message, recent_text, parse_mode='Markdown')
-    
-    # دستور /clear
-    elif text == '/clear':
-        recent_messages.clear()
-        save_data()
-        bot.reply_to(message, "✅ همه پیام‌های ذخیره شده پاک شدند")
-    
-    # دستور /cancel
-    elif text == '/cancel':
+    elif message.text == 'لغو' or message.text == 'cancel':
         if admin_id in reply_sessions:
             del reply_sessions[admin_id]
-            save_data()
-            bot.reply_to(message, "✅ ریپلای فعلی لغو شد")
-        else:
-            bot.reply_to(message, "⚠️ وضعیت ریپلای فعالی وجود ندارد")
-    
-    else:
-        # اگر پیام عادی ادمین است و در حالت ریپلای نیست
-        bot.reply_to(message, "💡 برای پاسخ به کاربران، روی دکمه 'ریپلای به کاربر' کلیک کنید.")
+            bot.reply_to(message, "✅ پاسخ لغو شد")
 
 # === رسانه از کاربران ===
 @bot.message_handler(content_types=['photo', 'video', 'document', 'voice'])
-def forward_media(message):
-    # فقط از کاربران غیر ادمین
+def handle_media(message):
     if str(message.from_user.id) == YOUR_CHAT_ID:
         return
     
-    user_id = message.from_user.id
-    user_name = message.from_user.first_name
+    user = message.from_user
+    user_id = user.id
+    
+    if user_id in blocked_users:
+        return
     
     try:
-        # فوروارد رسانه به شما
         bot.forward_message(YOUR_CHAT_ID, message.chat.id, message.message_id)
         
-        # اطلاع رسانی به شما
         media_type = {
             'photo': 'عکس',
             'video': 'ویدیو',
             'document': 'فایل',
-            'voice': 'ویس'
+            'voice': 'پیام صوتی'
         }.get(message.content_type, 'رسانه')
         
-        info = f"📎 {media_type} جدید از {user_name} (آیدی: {user_id})"
+        info = f"""
+        📎 *{media_type} جدید*
         
-        # ارسال اطلاع با دکمه ریپلای
-        msg = bot.send_message(
-            YOUR_CHAT_ID, 
+        👤 از: {user.first_name}
+        🆔 آیدی: `{user_id}`
+        """
+        
+        bot.send_message(
+            YOUR_CHAT_ID,
             info,
-            reply_markup=create_reply_keyboard(user_id, message.message_id)
+            parse_mode='Markdown',
+            reply_markup=create_advanced_keyboard(user_id, message.message_id)
         )
         
-        # ذخیره در لیست
-        recent_messages.append({
-            'user_id': user_id,
-            'user_name': user_name,
-            'text': f"[{media_type}]",
-            'time': time.time(),
-            'user_message_id': message.message_id,
-            'admin_message_id': msg.message_id
-        })
-        
-        # تأییدیه به کاربر
         bot.reply_to(message, f"✅ {media_type} شما ارسال شد!")
         
-        save_data()
+        update_user_data(user_id, user.first_name, user.username)
         
     except Exception as e:
-        print(f"❌ خطا در ارسال رسانه: {e}")
-        bot.reply_to(message, f"❌ خطا در ارسال رسانه")
+        print(f"❌ خطا در رسانه: {e}")
 
 # === اجرای ربات ===
+print("🔄 اتصال به تلگرام...")
+
 def run_bot():
     while True:
         try:
-            print("🔄 در حال اتصال به سرور تلگرام...")
-            bot.polling(none_stop=True, interval=2, timeout=30)
+            bot.polling(none_stop=True, timeout=30, long_polling_timeout=30)
         except Exception as e:
-            print(f"⚠️ خطا در اتصال: {e}")
-            print("⏳ 5 ثانیه دیگر تلاش مجدد...")
-            time.sleep(5)
-            save_data()  # ذخیره داده‌ها قبل از تلاش مجدد
+            print(f"⚠️ خطا: {e}")
+            print("⏳ 10 ثانیه تا تلاش مجدد...")
+            time.sleep(10)
+            save_all_data()
 
 if __name__ == "__main__":
     try:
         run_bot()
     except KeyboardInterrupt:
-        print("\n👋 ربات متوقف شد. ذخیره داده‌ها...")
-        save_data()
+        print("\n👋 ربات متوقف شد")
+        save_all_data()
