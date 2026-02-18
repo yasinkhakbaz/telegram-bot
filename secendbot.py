@@ -20,7 +20,7 @@ blocked_users = []  # لیست کاربران بلاک شده
 users_data = {}  # اطلاعات کاربران
 
 # دیکشنری برای ذخیره وضعیت ریپلای کاربران
-reply_sessions = {}  # {admin_id: {'target_user_id': X, 'target_message_id': Y, 'reply_text': ''}}
+reply_sessions = {}  # {admin_id: {'target_user_id': X, 'target_message_id': Y}}
 
 # فایل ذخیره داده‌ها
 DATA_FILE = "bot_data.json"
@@ -519,8 +519,7 @@ def handle_callback(call):
                 
                 reply_sessions[admin_id] = {
                     'target_user_id': target_user_id,
-                    'target_msg_id': target_msg_id,
-                    'status': 'waiting_reply'
+                    'target_msg_id': target_msg_id
                 }
                 
                 user_name = users_data.get(target_user_id, {}).get('name', 'کاربر')
@@ -538,6 +537,8 @@ def handle_callback(call):
                 آیدی: `{target_user_id}`
                 
                 پیام پاسخ را بنویسید و ارسال کنید.
+                پاسخ شما به صورت ریپلای روی پیام اصلی کاربر نمایش داده می‌شود.
+                
                 برای لغو دکمه زیر را بزنید.
                 """
                 
@@ -754,33 +755,49 @@ def handle_callback(call):
         print(f"❌ خطا در callback: {e}")
         bot.answer_callback_query(call.id, "❌ خطایی رخ داد")
 
-# === پردازش پاسخ ادمین ===
+# === پردازش پاسخ ادمین با قابلیت ریپلای مستقیم ===
 @bot.message_handler(func=lambda m: str(m.from_user.id) == YOUR_CHAT_ID and not m.text.startswith('/'))
 def handle_admin_message(message):
     admin_id = str(message.from_user.id)
     
-    if admin_id in reply_sessions and reply_sessions[admin_id].get('status') == 'waiting_reply':
+    if admin_id in reply_sessions:
         target_user_id = reply_sessions[admin_id]['target_user_id']
+        target_msg_id = reply_sessions[admin_id]['target_msg_id']
         reply_text = message.text
         
         try:
             user_name = users_data.get(target_user_id, {}).get('name', 'کاربر')
             
-            response = f"""
-            📨 *پاسخ از ادمین:*
+            # ارسال پاسخ به کاربر به صورت ریپلای روی پیام اصلی
+            bot.send_message(
+                target_user_id,
+                f"📨 *پاسخ از ادمین:*\n\n{reply_text}",
+                parse_mode='Markdown',
+                reply_to_message_id=int(target_msg_id)  # اینجا ریپلای می‌کنه روی پیام اصلی کاربر
+            )
             
-            {reply_text}
+            bot.reply_to(message, f"✅ پاسخ به {user_name} ارسال شد (به صورت ریپلای)")
             
-            🔄 برای پاسخ مجدد، پیام جدید بنویسید.
-            """
-            
-            bot.send_message(target_user_id, response, parse_mode='Markdown')
-            bot.reply_to(message, f"✅ پاسخ به {user_name} ارسال شد")
+            # پیدا کردن و آپدیت پیام اصلی در پنل ادمین
+            for msg in recent_messages:
+                if str(msg['user_id']) == target_user_id and msg['user_msg_id'] == int(target_msg_id):
+                    try:
+                        # آپدیت پیام در پنل ادمین
+                        bot.edit_message_text(
+                            chat_id=YOUR_CHAT_ID,
+                            message_id=msg['admin_msg_id'],
+                            text=f"✅ *پاسخ داده شده*\n\n{msg['text']}",
+                            parse_mode='Markdown',
+                            reply_markup=None
+                        )
+                    except:
+                        pass
+                    break
             
             del reply_sessions[admin_id]
             
         except Exception as e:
-            bot.reply_to(message, f"❌ خطا: {e}")
+            bot.reply_to(message, f"❌ خطا در ارسال پاسخ: {e}")
             if admin_id in reply_sessions:
                 del reply_sessions[admin_id]
     
