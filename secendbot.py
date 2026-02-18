@@ -115,7 +115,7 @@ def update_user_data(user_id, user_name, username=""):
     else:
         users_data[user_id_str]['last_seen'] = time.time()
 
-users_data[user_id_str]['message_count'] += 1
+        users_data[user_id_str]['message_count'] += 1
         if users_data[user_id_str]['name'] != user_name:
             users_data[user_id_str]['name'] = user_name
         if username and users_data[user_id_str]['username'] != username:
