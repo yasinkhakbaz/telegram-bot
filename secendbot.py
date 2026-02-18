@@ -113,8 +113,7 @@ def update_user_data(user_id, user_name, username=""):
             'is_blocked': user_id in blocked_users
         }
     else:
-        users_data[user_id_str]['last_seen'] = time.time()
-
+        users_data[user_id_str]['last_seen'] = time.time)
         users_data[user_id_str]['message_count'] += 1
         if users_data[user_id_str]['name'] != user_name:
             users_data[user_id_str]['name'] = user_name
@@ -222,8 +221,7 @@ def send_welcome(message):
         
     except Exception as e:
         print(f"⚠️ خطا در اطلاع‌رسانی: {e}")
-
-# === پیام از کاربران ===
+        # === پیام از کاربران ===
 @bot.message_handler(func=lambda m: str(m.from_user.id) != YOUR_CHAT_ID and not m.text.startswith('/'))
 def handle_user_message(message):
     user = message.from_user
@@ -354,8 +352,7 @@ def show_stats(message):
     """
     
     bot.reply_to(message, stats_text, parse_mode='Markdown')
-
-@bot.message_handler(commands=['users'])
+    @bot.message_handler(commands=['users'])
 def list_users(message):
     if str(message.from_user.id) != YOUR_CHAT_ID:
         return
@@ -613,8 +610,7 @@ def handle_callback(call):
                 # آپدیت پیام اصلی
                 original_text = call.message.text
                 if "⏳" not in original_text:
-                    bot.edit_message_text(
-                    chat_id=call.message.chat.id,
+                    bot.edit_message_text(chat_id=call.message.chat.id,
                         message_id=call.message.message_id,
                         text=original_text + "\n\n⏳ *در حال پاسخ...*",
                         parse_mode='Markdown',
@@ -708,8 +704,7 @@ def handle_callback(call):
             
             if user_id not in blocked_users:
                 blocked_users.append(user_id)
-
-if str(user_id) in users_data:
+        if str(user_id) in users_data:
                     users_data[str(user_id)]['is_blocked'] = True
                 
                 save_all_data()
@@ -807,8 +802,7 @@ if str(user_id) in users_data:
                 bot.send_message(
                     YOUR_CHAT_ID,
                     profile_text,
-
-parse_mode='Markdown',
+                parse_mode='Markdown',
                     reply_markup=create_advanced_keyboard(user_id_int, call.message.message_id)
                 )
                 bot.answer_callback_query(call.id)
@@ -859,4 +853,4 @@ if name == "main":
     except Exception as e:
         print(f"❌ خطا در اجرای ربات: {e}")
         time.sleep(5)
-        print("🔄 تلاش مجدد برای اجرا...")    
+        print("🔄 تلاش مجدد برای اجرا...")
