@@ -350,9 +350,9 @@ def show_stats(message):
     • اولین کاربر: {format_time(min([data['first_seen'] for data in users_data.values()])) if users_data else 'ندارد'}
     • آخرین فعالیت: {format_time(max([data['last_seen'] for data in users_data.values()])) if users_data else 'ندارد'}
     """
-    
     bot.reply_to(message, stats_text, parse_mode='Markdown')
-    @bot.message_handler(commands=['users'])
+
+@bot.message_handler(commands=['users'])
 def list_users(message):
     if str(message.from_user.id) != YOUR_CHAT_ID:
         return
@@ -364,9 +364,7 @@ def list_users(message):
     users_list = "👥 *لیست کاربران:*\n\n"
     
     # مرتب‌سازی براساس آخرین فعالیت
-    sorted_users = sorted(users_data.items(), 
-                         key=lambda x: x[1]['last_seen'], 
-                         reverse=True)[:20]  # 20 کاربر آخر
+    sorted_users = sorted(users_data.items(), key=lambda x: x[1]['last_seen'], reverse=True)[:20]
     
     for i, (user_id, data) in enumerate(sorted_users, 1):
         status = "🚫" if int(user_id) in blocked_users else "✅"
@@ -374,24 +372,29 @@ def list_users(message):
         users_list += f"{i}. {status} {data['name']} (آیدی: {user_id})\n"
         users_list += f"   📨 {data['message_count']} پیام | 📅 {last_seen}\n\n"
     
-    bot.reply_to(message, users_list, parse_mode='Markdown')
+    bot.send_message(message.chat.id, users_list, parse_mode='Markdown')
 
-@bot.message_handler(commands=['search'])
-def search_user(message):
+@bot.message_handler(commands=['users'])
+def list_users(message):
     if str(message.from_user.id) != YOUR_CHAT_ID:
         return
     
-    parts = message.text.split()
-    if len(parts) < 2:
-        bot.reply_to(message, "⚠️ استفاده: /search [آیدی یا نام]")
+    if not users_data:
+        bot.reply_to(message, "📭 هیچ کاربری ثبت نشده است")
         return
     
-    search_term = parts[1]
-    results = []
+    users_list = "👥 *لیست کاربران:*\n\n"
     
-    for user_id, data in users_data.items():
-        if (search_term in str(user_id) or 
-            search_term.lower() in data['name'].lower() or
+    # مرتب‌سازی براساس آخرین فعالیت
+    sorted_users = sorted(users_data.items(), key=lambda x: x[1]['last_seen'], reverse=True)[:20]
+    
+    for i, (user_id, data) in enumerate(sorted_users, 1):
+        status = "🚫" if int(user_id) in blocked_users else "✅"
+        last_seen = format_time(data['last_seen'])
+        users_list += f"{i}. {status} {data['name']} (آیدی: {user_id})\n"
+        users_list += f"   📨 {data['message_count']} پیام | 📅 {last_seen}\n\n"
+    
+    bot.send_message(message.chat.id, users_list, parse_mode='Markdown').lower() in data['name'].lower() or
             (data['username'] and search_term.lower() in data['username'].lower())):
             results.append((user_id, data))
     
