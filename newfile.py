@@ -7,7 +7,7 @@ from datetime import datetime, timezone, timedelta
 from telebot import types
 
 # تنظیمات ربات
-TOKEN = "8511185751:AAHpc-PTFtCNyBGrSknSKHv_6iV2O3Rdy4U"
+TOKEN = "8313399802:AAEb3dsc9PfYn3LFreycmxo9I2ycwL3PXuY"
 YOUR_CHAT_ID = "1761692934"
 
 # ایجاد ربات
