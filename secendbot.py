@@ -1,3 +1,4 @@
+Yasin, [2/10/2026 1:41 PM]
 # -*- coding: utf-8 -*-
 import telebot
 import time
@@ -114,7 +115,9 @@ def update_user_data(user_id, user_name, username=""):
         }
     else:
         users_data[user_id_str]['last_seen'] = time.time()
-        users_data[user_id_str]['message_count'] += 1
+
+Yasin, [2/10/2026 1:41 PM]
+users_data[user_id_str]['message_count'] += 1
         if users_data[user_id_str]['name'] != user_name:
             users_data[user_id_str]['name'] = user_name
         if username and users_data[user_id_str]['username'] != username:
@@ -221,7 +224,9 @@ def send_welcome(message):
         
     except Exception as e:
         print(f"⚠️ خطا در اطلاع‌رسانی: {e}")
-        # === پیام از کاربران ===
+
+Yasin, [2/10/2026 1:41 PM]
+# === پیام از کاربران ===
 @bot.message_handler(func=lambda m: str(m.from_user.id) != YOUR_CHAT_ID and not m.text.startswith('/'))
 def handle_user_message(message):
     user = message.from_user
@@ -350,8 +355,10 @@ def show_stats(message):
     • اولین کاربر: {format_time(min([data['first_seen'] for data in users_data.values()])) if users_data else 'ندارد'}
     • آخرین فعالیت: {format_time(max([data['last_seen'] for data in users_data.values()])) if users_data else 'ندارد'}
     """
+    
     bot.reply_to(message, stats_text, parse_mode='Markdown')
 
+Yasin, [2/10/2026 1:41 PM]
 @bot.message_handler(commands=['users'])
 def list_users(message):
     if str(message.from_user.id) != YOUR_CHAT_ID:
@@ -364,7 +371,9 @@ def list_users(message):
     users_list = "👥 *لیست کاربران:*\n\n"
     
     # مرتب‌سازی براساس آخرین فعالیت
-    sorted_users = sorted(users_data.items(), key=lambda x: x[1]['last_seen'], reverse=True)[:20]
+    sorted_users = sorted(users_data.items(), 
+                         key=lambda x: x[1]['last_seen'], 
+                         reverse=True)[:20]  # 20 کاربر آخر
     
     for i, (user_id, data) in enumerate(sorted_users, 1):
         status = "🚫" if int(user_id) in blocked_users else "✅"
@@ -372,29 +381,24 @@ def list_users(message):
         users_list += f"{i}. {status} {data['name']} (آیدی: {user_id})\n"
         users_list += f"   📨 {data['message_count']} پیام | 📅 {last_seen}\n\n"
     
-    bot.send_message(message.chat.id, users_list, parse_mode='Markdown')
+    bot.reply_to(message, users_list, parse_mode='Markdown')
 
-@bot.message_handler(commands=['users'])
-def list_users(message):
+@bot.message_handler(commands=['search'])
+def search_user(message):
     if str(message.from_user.id) != YOUR_CHAT_ID:
         return
     
-    if not users_data:
-        bot.reply_to(message, "📭 هیچ کاربری ثبت نشده است")
+    parts = message.text.split()
+    if len(parts) < 2:
+        bot.reply_to(message, "⚠️ استفاده: /search [آیدی یا نام]")
         return
     
-    users_list = "👥 *لیست کاربران:*\n\n"
+    search_term = parts[1]
+    results = []
     
-    # مرتب‌سازی براساس آخرین فعالیت
-    sorted_users = sorted(users_data.items(), key=lambda x: x[1]['last_seen'], reverse=True)[:20]
-    
-    for i, (user_id, data) in enumerate(sorted_users, 1):
-        status = "🚫" if int(user_id) in blocked_users else "✅"
-        last_seen = format_time(data['last_seen'])
-        users_list += f"{i}. {status} {data['name']} (آیدی: {user_id})\n"
-        users_list += f"   📨 {data['message_count']} پیام | 📅 {last_seen}\n\n"
-    
-    bot.send_message(message.chat.id, users_list, parse_mode='Markdown').lower() in data['name'].lower() or
+    for user_id, data in users_data.items():
+        if (search_term in str(user_id) or 
+            search_term.lower() in data['name'].lower() or
             (data['username'] and search_term.lower() in data['username'].lower())):
             results.append((user_id, data))
     
@@ -477,7 +481,9 @@ def unblock_user_cmd(message):
         # آپدیت وضعیت در users_data
         if str(user_id) in users_data:
             users_data[str(user_id)]['is_blocked'] = False
-            save_all_data()
+
+Yasin, [2/10/2026 1:41 PM]
+save_all_data()
         
         # اطلاع به کاربر
         try:
@@ -596,7 +602,9 @@ def handle_callback(call):
         
         # پاسخ به کاربر
         if call.data.startswith('reply_'):
-            parts = call.data.split('_')
+
+Yasin, [2/10/2026 1:41 PM]
+parts = call.data.split('_')
             if len(parts) >= 3:
                 target_user_id = parts[1]
                 target_msg_id = parts[2]
@@ -613,7 +621,10 @@ def handle_callback(call):
                 # آپدیت پیام اصلی
                 original_text = call.message.text
                 if "⏳" not in original_text:
-                    bot.edit_message_text(chat_id=call.message.chat.id,
+                    bot.edit_message_text(
+
+Yasin, [2/10/2026 1:44 PM]
+chat_id=call.message.chat.id,
                         message_id=call.message.message_id,
                         text=original_text + "\n\n⏳ *در حال پاسخ...*",
                         parse_mode='Markdown',
@@ -707,7 +718,9 @@ def handle_callback(call):
             
             if user_id not in blocked_users:
                 blocked_users.append(user_id)
-        if str(user_id) in users_data:
+
+Yasin, [2/10/2026 1:44 PM]
+if str(user_id) in users_data:
                     users_data[str(user_id)]['is_blocked'] = True
                 
                 save_all_data()
@@ -805,7 +818,9 @@ def handle_callback(call):
                 bot.send_message(
                     YOUR_CHAT_ID,
                     profile_text,
-                parse_mode='Markdown',
+
+Yasin, [2/10/2026 1:44 PM]
+parse_mode='Markdown',
                     reply_markup=create_advanced_keyboard(user_id_int, call.message.message_id)
                 )
                 bot.answer_callback_query(call.id)
