@@ -169,6 +169,9 @@ def send_welcome(message):
     ✅ تأییدیه هم دریافت می‌کنی.
 
     🔒 (حریم خصوصی کامل(ناشناسه
+
+     🆔 آیدی شما: `{user_id}`
+    """
     
     bot.send_message(message.chat.id, welcome_text, parse_mode='Markdown')
     
