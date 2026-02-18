@@ -477,8 +477,7 @@ def unblock_user_cmd(message):
         # آپدیت وضعیت در users_data
         if str(user_id) in users_data:
             users_data[str(user_id)]['is_blocked'] = False
-
-save_all_data()
+            save_all_data()
         
         # اطلاع به کاربر
         try:
