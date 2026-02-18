@@ -1,4 +1,3 @@
-Yasin, [2/10/2026 1:41 PM]
 # -*- coding: utf-8 -*-
 import telebot
 import time
