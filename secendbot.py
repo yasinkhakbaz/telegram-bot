@@ -112,15 +112,22 @@ def create_advanced_keyboard(user_id, message_id):
     """ایجاد کیبورد پیشرفته برای ادمین"""
     keyboard = types.InlineKeyboardMarkup(row_width=3)
     
+    # بررسی وضعیت بلاک برای نمایش دکمه مناسب
+    is_blocked = user_id in blocked_users
+    
     btn_reply = types.InlineKeyboardButton("📩 پاسخ", callback_data=f"reply_{user_id}_{message_id}")
-    btn_block = types.InlineKeyboardButton("🚫 بلاک", callback_data=f"block_{user_id}")
+    
+    if is_blocked:
+        btn_block = types.InlineKeyboardButton("✅ آنبلاک", callback_data=f"unblock_{user_id}")
+    else:
+        btn_block = types.InlineKeyboardButton("🚫 بلاک", callback_data=f"block_{user_id}")
+    
     btn_profile = types.InlineKeyboardButton("👤 پروفایل", callback_data=f"profile_{user_id}")
     btn_messages = types.InlineKeyboardButton("📨 پیام‌ها", callback_data=f"messages_{user_id}")
-    btn_unblock = types.InlineKeyboardButton("✅ آنبلاک", callback_data=f"unblock_{user_id}")
     btn_delete = types.InlineKeyboardButton("🗑️ حذف", callback_data=f"delete_{message_id}")
     
     keyboard.add(btn_reply, btn_block, btn_profile)
-    keyboard.add(btn_messages, btn_unblock, btn_delete)
+    keyboard.add(btn_messages, btn_delete)
     
     return keyboard
 
@@ -168,9 +175,9 @@ def send_welcome(message):
     ✍️ هر پیامی که بفرستی، مستقیم به دست یاسین میرسه.
     ✅ تأییدیه هم دریافت می‌کنی.
 
-    🔒  (ناشناس)حریم خصوصی کامل
+    🔒 (ناشناس) حریم خصوصی کامل
 
-     🆔 آیدی شما: `{user_id}`
+    🆔 آیدی شما: `{user_id}`
     """
     
     bot.send_message(message.chat.id, welcome_text, parse_mode='Markdown')
@@ -561,7 +568,13 @@ def handle_callback(call):
                 
                 bot.answer_callback_query(call.id, f"✅ کاربر {user_id} بلاک شد")
                 
-                # آپدیت پیام
+                # آپدیت پیام و دکمه‌ها
+                bot.edit_message_reply_markup(
+                    chat_id=call.message.chat.id,
+                    message_id=call.message.message_id,
+                    reply_markup=create_advanced_keyboard(user_id, call.message.message_id)
+                )
+                
                 bot.edit_message_text(
                     chat_id=call.message.chat.id,
                     message_id=call.message.message_id,
@@ -589,7 +602,13 @@ def handle_callback(call):
                 
                 bot.answer_callback_query(call.id, f"✅ کاربر {user_id} آنبلاک شد")
                 
-                # آپدیت پیام
+                # آپدیت پیام و دکمه‌ها
+                bot.edit_message_reply_markup(
+                    chat_id=call.message.chat.id,
+                    message_id=call.message.message_id,
+                    reply_markup=create_advanced_keyboard(user_id, call.message.message_id)
+                )
+                
                 bot.edit_message_text(
                     chat_id=call.message.chat.id,
                     message_id=call.message.message_id,
@@ -654,8 +673,6 @@ def handle_callback(call):
         
         # حذف پیام
         elif call.data.startswith('delete_'):
-            msg_id = call.data.split('_')[1]
-            
             try:
                 bot.delete_message(call.message.chat.id, call.message.message_id)
                 bot.answer_callback_query(call.id, "🗑️ پیام حذف شد")
@@ -772,35 +789,84 @@ def handle_admin_message(message):
             del reply_sessions[admin_id]
             bot.reply_to(message, "✅ پاسخ لغو شد")
 
-# === رسانه از کاربران ===
-@bot.message_handler(content_types=['photo', 'video', 'document', 'voice'])
-def handle_media(message):
+# === رسانه از کاربران - پشتیبانی کامل از همه نوع محتوا ===
+@bot.message_handler(content_types=[
+    'photo', 'video', 'document', 'voice', 'audio', 'sticker', 
+    'animation', 'video_note', 'location', 'venue', 'contact',
+    'dice', 'poll', 'game'
+])
+def handle_all_media(message):
+    """پردازش همه نوع رسانه از کاربران"""
     if str(message.from_user.id) == YOUR_CHAT_ID:
         return
     
     user = message.from_user
     user_id = user.id
     
+    # چک کردن بلاک بودن
     if user_id in blocked_users:
         return
     
     try:
+        # فوروارد رسانه به ادمین (برای همه نوع محتوا کار می‌کند)
         bot.forward_message(YOUR_CHAT_ID, message.chat.id, message.message_id)
         
-        media_type = {
-            'photo': 'عکس',
-            'video': 'ویدیو',
-            'document': 'فایل',
-            'voice': 'پیام صوتی'
-        }.get(message.content_type, 'رسانه')
+        # تشخیص نوع محتوا با نام فارسی
+        media_type_persian = {
+            'photo': '📸 عکس',
+            'video': '🎥 ویدیو',
+            'document': '📎 فایل',
+            'voice': '🎤 پیام صوتی',
+            'audio': '🎵 آهنگ',
+            'sticker': '😊 استیکر',
+            'animation': '🎬 گیف',
+            'video_note': '📹 ویدیو نوت',
+            'location': '📍 موقعیت مکانی',
+            'venue': '🏢 مکان',
+            'contact': '📇 مخاطب',
+            'dice': '🎲 تاس',
+            'poll': '📊 نظرسنجی',
+            'game': '🎮 بازی'
+        }.get(message.content_type, f'📦 {message.content_type}')
         
+        # اطلاعات بیشتر برای هر نوع محتوا
+        media_details = ""
+        
+        if message.content_type == 'photo':
+            media_details = f"📏 ابعاد: {message.photo[-1].width}x{message.photo[-1].height}"
+        elif message.content_type == 'video':
+            media_details = f"⏱️ مدت: {message.video.duration} ثانیه"
+        elif message.content_type == 'voice':
+            media_details = f"⏱️ مدت: {message.voice.duration} ثانیه"
+        elif message.content_type == 'audio':
+            media_details = f"🎵 {message.audio.title or 'بدون عنوان'} - {message.audio.performer or 'ناشناس'}"
+        elif message.content_type == 'document':
+            media_details = f"📄 {message.document.file_name} ({round(message.document.file_size/1024, 1)} KB)"
+        elif message.content_type == 'sticker':
+            media_details = f"🎭 {message.sticker.emoji or 'بدون ایموجی'}"
+        elif message.content_type == 'animation':
+            media_details = f"🎬 {message.animation.file_name or 'گیف'}"
+        elif message.content_type == 'dice':
+            media_details = f"🎲 مقدار: {message.dice.value}"
+        elif message.content_type == 'location':
+            media_details = f"📍 {message.location.latitude}, {message.location.longitude}"
+        
+        # ساخت پیام اطلاعاتی برای ادمین
         info = f"""
-        📎 *{media_type} جدید*
+        {media_type_persian} *جدید*
         
         👤 از: {user.first_name}
         🆔 آیدی: `{user_id}`
         """
         
+        if media_details:
+            info += f"\n📋 {media_details}"
+        
+        # اضافه کردن کپشن اگر وجود داشته باشد
+        if message.caption:
+            info += f"\n💬 کپشن: {message.caption[:100]}"
+        
+        # ارسال اطلاع به ادمین با دکمه‌ها
         bot.send_message(
             YOUR_CHAT_ID,
             info,
@@ -808,12 +874,26 @@ def handle_media(message):
             reply_markup=create_advanced_keyboard(user_id, message.message_id)
         )
         
-        bot.reply_to(message, f"✅ {media_type} شما ارسال شد!")
+        # ذخیره در recent_messages
+        recent_messages.append({
+            'user_id': user_id,
+            'user_name': user.first_name,
+            'text': f"[{media_type_persian}]" + (f" - {message.caption[:30]}" if message.caption else ""),
+            'time': time.time(),
+            'user_msg_id': message.message_id,
+            'admin_msg_id': None  # برای رسانه آیدی پیام نداریم
+        })
         
+        # تأییدیه به کاربر
+        bot.reply_to(message, f"✅ {media_type_persian} شما ارسال شد!")
+        
+        # به‌روزرسانی اطلاعات کاربر
         update_user_data(user_id, user.first_name, user.username)
+        save_all_data()
         
     except Exception as e:
-        print(f"❌ خطا در رسانه: {e}")
+        print(f"❌ خطا در ارسال رسانه ({message.content_type}): {e}")
+        bot.reply_to(message, f"⚠️ خطا در ارسال {message.content_type}")
 
 # === اجرای ربات ===
 print("🔄 اتصال به تلگرام...")
