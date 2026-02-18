@@ -536,7 +536,15 @@ def handle_callback(call):
                 
                 آیدی: `{target_user_id}`
                 
-                پیام پاسخ را بنویسید و ارسال کنید.
+                می‌تونی براشون بفرستی:
+                • متن
+                • عکس
+                • ویدیو
+                • فایل
+                • استیکر
+                • صدا
+                • هر چی دلت می‌خواد!
+                
                 پاسخ شما به صورت ریپلای روی پیام اصلی کاربر نمایش داده می‌شود.
                 
                 برای لغو دکمه زیر را بزنید.
@@ -549,7 +557,7 @@ def handle_callback(call):
                     reply_markup=create_cancel_keyboard()
                 )
                 
-                bot.answer_callback_query(call.id, "📝 پیام پاسخ را بنویسید")
+                bot.answer_callback_query(call.id, "📝 هر چی می‌خوای بفرست...")
         
         # بلاک کاربر
         elif call.data.startswith('block_'):
@@ -755,68 +763,183 @@ def handle_callback(call):
         print(f"❌ خطا در callback: {e}")
         bot.answer_callback_query(call.id, "❌ خطایی رخ داد")
 
-# === پردازش پاسخ ادمین با قابلیت ریپلای مستقیم ===
-@bot.message_handler(func=lambda m: str(m.from_user.id) == YOUR_CHAT_ID and not m.text.startswith('/'))
-def handle_admin_message(message):
+# === پردازش پاسخ ادمین با قابلیت ارسال انواع مدیا ===
+@bot.message_handler(func=lambda m: str(m.from_user.id) == YOUR_CHAT_ID, content_types=[
+    'text', 'photo', 'video', 'document', 'voice', 'audio', 'sticker', 
+    'animation', 'video_note', 'location', 'venue', 'contact', 'dice'
+])
+def handle_admin_media(message):
     admin_id = str(message.from_user.id)
     
-    if admin_id in reply_sessions:
-        target_user_id = reply_sessions[admin_id]['target_user_id']
-        target_msg_id = reply_sessions[admin_id]['target_msg_id']
-        reply_text = message.text
+    # اگر در حالت ریپلای نیستیم، دستورات را پردازش کن
+    if admin_id not in reply_sessions:
+        if message.text and message.text.startswith('/'):
+            return
+        elif message.text and (message.text == 'لغو' or message.text == 'cancel'):
+            return
+        else:
+            bot.reply_to(message, "💡 برای ارسال به کاربر، اول روی دکمه '📩 پاسخ' کلیک کن")
+            return
+    
+    # ارسال پاسخ به کاربر
+    target_user_id = reply_sessions[admin_id]['target_user_id']
+    target_msg_id = reply_sessions[admin_id]['target_msg_id']
+    
+    try:
+        user_name = users_data.get(target_user_id, {}).get('name', 'کاربر')
         
-        try:
-            user_name = users_data.get(target_user_id, {}).get('name', 'کاربر')
-            
-            # ارسال پاسخ به کاربر به صورت ریپلای روی پیام اصلی
+        # ارسال براساس نوع محتوا
+        if message.content_type == 'text':
             bot.send_message(
                 target_user_id,
-                f"📨 *پاسخ از ادمین:*\n\n{reply_text}",
+                f"📨 *پاسخ از ادمین:*\n\n{message.text}",
                 parse_mode='Markdown',
-                reply_to_message_id=int(target_msg_id)  # اینجا ریپلای می‌کنه روی پیام اصلی کاربر
+                reply_to_message_id=int(target_msg_id)
             )
+            bot.reply_to(message, f"✅ پیام متنی به {user_name} ارسال شد")
             
-            bot.reply_to(message, f"✅ پاسخ به {user_name} ارسال شد (به صورت ریپلای)")
+        elif message.content_type == 'photo':
+            bot.send_photo(
+                target_user_id,
+                message.photo[-1].file_id,
+                caption=f"📨 *پاسخ از ادمین:*\n\n{message.caption if message.caption else ''}",
+                parse_mode='Markdown',
+                reply_to_message_id=int(target_msg_id)
+            )
+            bot.reply_to(message, f"✅ عکس به {user_name} ارسال شد")
             
-            # پیدا کردن و آپدیت پیام اصلی در پنل ادمین
-            for msg in recent_messages:
-                if str(msg['user_id']) == target_user_id and msg['user_msg_id'] == int(target_msg_id):
-                    try:
-                        # آپدیت پیام در پنل ادمین
-                        bot.edit_message_text(
-                            chat_id=YOUR_CHAT_ID,
-                            message_id=msg['admin_msg_id'],
-                            text=f"✅ *پاسخ داده شده*\n\n{msg['text']}",
-                            parse_mode='Markdown',
-                            reply_markup=None
-                        )
-                    except:
-                        pass
-                    break
+        elif message.content_type == 'video':
+            bot.send_video(
+                target_user_id,
+                message.video.file_id,
+                caption=f"📨 *پاسخ از ادمین:*\n\n{message.caption if message.caption else ''}",
+                parse_mode='Markdown',
+                reply_to_message_id=int(target_msg_id)
+            )
+            bot.reply_to(message, f"✅ ویدیو به {user_name} ارسال شد")
             
-            del reply_sessions[admin_id]
+        elif message.content_type == 'document':
+            bot.send_document(
+                target_user_id,
+                message.document.file_id,
+                caption=f"📨 *پاسخ از ادمین:*\n\n{message.caption if message.caption else ''}",
+                parse_mode='Markdown',
+                reply_to_message_id=int(target_msg_id)
+            )
+            bot.reply_to(message, f"✅ فایل به {user_name} ارسال شد")
             
-        except Exception as e:
-            bot.reply_to(message, f"❌ خطا در ارسال پاسخ: {e}")
-            if admin_id in reply_sessions:
-                del reply_sessions[admin_id]
-    
-    elif message.text == 'لغو' or message.text == 'cancel':
-        if admin_id in reply_sessions:
-            del reply_sessions[admin_id]
-            bot.reply_to(message, "✅ پاسخ لغو شد")
+        elif message.content_type == 'voice':
+            bot.send_voice(
+                target_user_id,
+                message.voice.file_id,
+                caption=f"📨 *پاسخ از ادمین:*\n\n{message.caption if message.caption else ''}",
+                parse_mode='Markdown',
+                reply_to_message_id=int(target_msg_id)
+            )
+            bot.reply_to(message, f"✅ پیام صوتی به {user_name} ارسال شد")
+            
+        elif message.content_type == 'audio':
+            bot.send_audio(
+                target_user_id,
+                message.audio.file_id,
+                caption=f"📨 *پاسخ از ادمین:*\n\n{message.caption if message.caption else ''}",
+                parse_mode='Markdown',
+                reply_to_message_id=int(target_msg_id)
+            )
+            bot.reply_to(message, f"✅ آهنگ به {user_name} ارسال شد")
+            
+        elif message.content_type == 'sticker':
+            bot.send_sticker(
+                target_user_id,
+                message.sticker.file_id,
+                reply_to_message_id=int(target_msg_id)
+            )
+            bot.reply_to(message, f"✅ استیکر به {user_name} ارسال شد")
+            
+        elif message.content_type == 'animation':
+            bot.send_animation(
+                target_user_id,
+                message.animation.file_id,
+                caption=f"📨 *پاسخ از ادمین:*\n\n{message.caption if message.caption else ''}",
+                parse_mode='Markdown',
+                reply_to_message_id=int(target_msg_id)
+            )
+            bot.reply_to(message, f"✅ گیف به {user_name} ارسال شد")
+            
+        elif message.content_type == 'video_note':
+            bot.send_video_note(
+                target_user_id,
+                message.video_note.file_id,
+                reply_to_message_id=int(target_msg_id)
+            )
+            bot.reply_to(message, f"✅ ویدیو نوت به {user_name} ارسال شد")
+            
+        elif message.content_type == 'location':
+            bot.send_location(
+                target_user_id,
+                message.location.latitude,
+                message.location.longitude,
+                reply_to_message_id=int(target_msg_id)
+            )
+            bot.reply_to(message, f"✅ موقعیت مکانی به {user_name} ارسال شد")
+            
+        elif message.content_type == 'contact':
+            bot.send_contact(
+                target_user_id,
+                message.contact.phone_number,
+                message.contact.first_name,
+                reply_to_message_id=int(target_msg_id)
+            )
+            bot.reply_to(message, f"✅ مخاطب به {user_name} ارسال شد")
+            
+        elif message.content_type == 'dice':
+            bot.send_dice(
+                target_user_id,
+                reply_to_message_id=int(target_msg_id)
+            )
+            bot.reply_to(message, f"✅ تاس به {user_name} ارسال شد")
+        
+        # پیدا کردن و آپدیت پیام اصلی در پنل ادمین
+        for msg in recent_messages:
+            if str(msg['user_id']) == target_user_id and msg['user_msg_id'] == int(target_msg_id):
+                try:
+                    # آپدیت پیام در پنل ادمین
+                    bot.edit_message_text(
+                        chat_id=YOUR_CHAT_ID,
+                        message_id=msg['admin_msg_id'],
+                        text=f"✅ *پاسخ داده شده*\n\n{msg['text']}",
+                        parse_mode='Markdown',
+                        reply_markup=None
+                    )
+                except:
+                    pass
+                break
+        
+        # پاک کردن وضعیت ریپلای
+        del reply_sessions[admin_id]
+        
+    except Exception as e:
+        bot.reply_to(message, f"❌ خطا در ارسال: {e}")
+        print(f"❌ خطا در ارسال به کاربر: {e}")
+
+# === هندلر برای لغو ===
+@bot.message_handler(func=lambda m: str(m.from_user.id) == YOUR_CHAT_ID and m.text in ['لغو', 'cancel'])
+def handle_cancel(message):
+    admin_id = str(message.from_user.id)
+    if admin_id in reply_sessions:
+        del reply_sessions[admin_id]
+        bot.reply_to(message, "✅ پاسخ لغو شد")
+    else:
+        bot.reply_to(message, "⚠️ عملیات فعالی برای لغو وجود ندارد")
 
 # === رسانه از کاربران - پشتیبانی کامل از همه نوع محتوا ===
-@bot.message_handler(content_types=[
+@bot.message_handler(func=lambda m: str(m.from_user.id) != YOUR_CHAT_ID, content_types=[
     'photo', 'video', 'document', 'voice', 'audio', 'sticker', 
     'animation', 'video_note', 'location', 'venue', 'contact',
     'dice', 'poll', 'game'
 ])
-def handle_all_media(message):
+def handle_all_media_from_user(message):
     """پردازش همه نوع رسانه از کاربران"""
-    if str(message.from_user.id) == YOUR_CHAT_ID:
-        return
-    
     user = message.from_user
     user_id = user.id
     
