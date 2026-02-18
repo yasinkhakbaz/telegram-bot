@@ -596,8 +596,7 @@ def handle_callback(call):
         
         # پاسخ به کاربر
         if call.data.startswith('reply_'):
-
-parts = call.data.split('_')
+            parts = call.data.split('_')
             if len(parts) >= 3:
                 target_user_id = parts[1]
                 target_msg_id = parts[2]
