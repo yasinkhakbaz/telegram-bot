@@ -115,7 +115,6 @@ def update_user_data(user_id, user_name, username=""):
     else:
         users_data[user_id_str]['last_seen'] = time.time()
 
-Yasin, [2/10/2026 1:41 PM]
 users_data[user_id_str]['message_count'] += 1
         if users_data[user_id_str]['name'] != user_name:
             users_data[user_id_str]['name'] = user_name
@@ -224,7 +223,6 @@ def send_welcome(message):
     except Exception as e:
         print(f"⚠️ خطا در اطلاع‌رسانی: {e}")
 
-Yasin, [2/10/2026 1:41 PM]
 # === پیام از کاربران ===
 @bot.message_handler(func=lambda m: str(m.from_user.id) != YOUR_CHAT_ID and not m.text.startswith('/'))
 def handle_user_message(message):
@@ -357,7 +355,6 @@ def show_stats(message):
     
     bot.reply_to(message, stats_text, parse_mode='Markdown')
 
-Yasin, [2/10/2026 1:41 PM]
 @bot.message_handler(commands=['users'])
 def list_users(message):
     if str(message.from_user.id) != YOUR_CHAT_ID:
@@ -481,7 +478,6 @@ def unblock_user_cmd(message):
         if str(user_id) in users_data:
             users_data[str(user_id)]['is_blocked'] = False
 
-Yasin, [2/10/2026 1:41 PM]
 save_all_data()
         
         # اطلاع به کاربر
@@ -602,7 +598,6 @@ def handle_callback(call):
         # پاسخ به کاربر
         if call.data.startswith('reply_'):
 
-Yasin, [2/10/2026 1:41 PM]
 parts = call.data.split('_')
             if len(parts) >= 3:
                 target_user_id = parts[1]
@@ -622,7 +617,6 @@ parts = call.data.split('_')
                 if "⏳" not in original_text:
                     bot.edit_message_text(
 
-Yasin, [2/10/2026 1:44 PM]
 chat_id=call.message.chat.id,
                         message_id=call.message.message_id,
                         text=original_text + "\n\n⏳ *در حال پاسخ...*",
@@ -718,7 +712,6 @@ chat_id=call.message.chat.id,
             if user_id not in blocked_users:
                 blocked_users.append(user_id)
 
-Yasin, [2/10/2026 1:44 PM]
 if str(user_id) in users_data:
                     users_data[str(user_id)]['is_blocked'] = True
                 
@@ -818,7 +811,6 @@ if str(user_id) in users_data:
                     YOUR_CHAT_ID,
                     profile_text,
 
-Yasin, [2/10/2026 1:44 PM]
 parse_mode='Markdown',
                     reply_markup=create_advanced_keyboard(user_id_int, call.message.message_id)
                 )
